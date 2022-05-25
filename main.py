@@ -1,5 +1,4 @@
-import urllib.request
-import requests, time, openpyxl, time, datetime
+import requests, time, openpyxl, time, datetime, urllib
 import vk_api
 
 with open("config.txt", 'r', encoding='utf-8') as f:
@@ -12,22 +11,23 @@ album_id = int(config[2])
 sheet_path = config[3]
 time_d = int(config[4])
 delta = datetime.timedelta(hours=time_d)
-now = datetime.datetime.now()
-t = now - delta
+now = datetime.datetime.now() - delta
 
-print('Время сейчас', t.date(), t.time() )
+
+print('Время сейчас', now.date(), now.time() )
 
 session = vk_api.VkApi(token=token)
 vk = session.get_api()
 
+
 def add_photo(user_id, album_id, text, attch_url):
     try:
         img = urllib.request.urlopen(attch_url).read()
-        out = open("system\\img.jpg", "wb")
+        out = open("img.jpg", "wb")
         out.write(img)
         out.close()
         upload_url = session.method("photos.getUploadServer", {"album_id": album_id, "group_id": user_id})['upload_url']
-        request = requests.post(upload_url, files={'file': open("system\\img.jpg", "rb")})
+        request = requests.post(upload_url, files={'file': open("img.jpg", "rb")})
     except Exception:
         session.method("wall.post",
                        {"owner_id": -user_id, "from_group": 1, "message": text})
@@ -37,7 +37,6 @@ def add_photo(user_id, album_id, text, attch_url):
     if not request.json()['photos_list']:
         print('ссылка говно, фотки не будет')
         return 0
-
 
     save_photo = session.method("photos.save", {
         "album_id": album_id,
@@ -49,51 +48,47 @@ def add_photo(user_id, album_id, text, attch_url):
 
     attc_name = str("photo" + str(save_photo[0]['owner_id']) + "_" + str(save_photo[0]['id']))
     session.method("wall.post",
-                           {"owner_id": -user_id, "from_group": 1, "message": text, "attachments": attc_name})
+                   {"owner_id": -user_id, "from_group": 1, "message": text, "attachments": attc_name})
     return 1
 
-if __name__ == '__main__':
 
+VS=[[],[]]
+time_d_post = datetime.timedelta(minutes=1)
 
+while True:
+    wb = openpyxl.open('Primer.xlsx', read_only=True)
+    sheet = wb.active
+    for row in range(2, sheet.max_row + 1):
+        try:
+            for i in range(len(sheet[row])):
+                if sheet[row][i].value != VS[row][i]:
+                    print('В ',row,' строке внесены изменения')
 
+                    for j in range(len(VS[row])):
+                        VS[row][j]=sheet[row][j].value
 
-    while(time.time()):
-        wb = openpyxl.open(sheet_path, read_only=True)
-        wb1 = openpyxl.open('system\\не_трогать.xlsx', read_only=False)
-        sheet = wb.active
-        sheet1 = wb1.active
+        except IndexError:
+            VS.append([])
+            for i in range(len(sheet[row])):
+                VS[row].append('')
+                VS[row][i]=sheet[row][i].value
+    wb.close()
+    now = datetime.datetime.now() - delta
+    for row in range(2, sheet.max_row + 1):
+        try:
+            if VS[row][2] and VS[row][3]:
 
-        for row in range(2, sheet.max_row + 1):
-            t = False
-            for i in range(4):
-                if sheet[row][i].value != sheet1[row][i].value:
-                    t = True
-                    sheet1[row][i].value = sheet[row][i].value
-                    sheet1.cell(row=row, column=5, value=1)
-
-
-                    wb1.save('system\\не_трогать.xlsx')
-        wb.close()
-        now = datetime.datetime.now()
-
-
-        for row in range(2, sheet.max_row + 1):
-            if sheet1[row][0].value or sheet1[row][1].value:
-                if sheet1[row][2].value and sheet1[row][3].value and sheet1[row][4].value:
-                    try: d =datetime.datetime.combine(sheet1[row][2].value.date(), sheet1[row][3].value)
-                    except Exception:
-                        d = datetime.datetime.combine(sheet1[row][2].value.date(), sheet1[row][3].value.time())
-
-                    if d < now - delta:
-                        add_t = add_photo(group_id, album_id, sheet1[row][0].value, sheet1[row][1].value)
+                if VS[row][0] or VS[row][1]:
+                    time_date = datetime.datetime.combine(VS[row][2], VS[row][3])
+                    if now > time_date and abs(now - time_date) < time_d_post:
+                        add_t = add_photo(group_id, album_id, VS[row][0], VS[row][1])
                         if add_t:
                             print("Пост под номером ", row, ' в таблице, был добавлен с фото')
                         else:
                             print("Пост под номером ", row, ' в таблице, был добавлен без фото')
-                        sheet1[row][4].value = 0
-                        wb1.save('system\\не_трогать.xlsx')
 
-        time.sleep(20)
+                        time.sleep(61)
+        except TypeError:
+            print('Поход в строке ', row, ' не правильно указана дата или время')
 
-
-
+    time.sleep(5)
